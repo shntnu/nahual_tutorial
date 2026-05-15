@@ -7,13 +7,32 @@ app = marimo.App()
 @app.cell
 def _():
     import getpass
+    import platform
 
     import marimo as mo
     import numpy
 
     from nahual.process import dispatch_setup_process
 
-    return dispatch_setup_process, getpass, mo, numpy
+    # Devices the *server* will pin to. On a Linux+CUDA host we keep the
+    # original GPU indices (matches the README's "pin to different GPUs"
+    # advice). On Darwin we send "mps" so the pixi-based server can run on
+    # Apple Silicon - the server falls back to CPU if MPS is unavailable.
+    if platform.system() == "Darwin":
+        morphem_device = "mps"
+        dinov2_device = "mps"
+    else:
+        morphem_device = 2
+        dinov2_device = 3
+
+    return (
+        dinov2_device,
+        dispatch_setup_process,
+        getpass,
+        mo,
+        morphem_device,
+        numpy,
+    )
 
 
 @app.cell(hide_code=True)
@@ -80,14 +99,16 @@ def _(dispatch_setup_process, getpass):
 
 
 @app.cell
-def _(address, setup):
+def _(address, morphem_device, setup):
     # Load the MorphEm model in the server-side process.
-    # IMPORTANT: pick a GPU with free memory (check `nvidia-smi`). If `device=0`
-    # is full, inference fails *silently* (the server catches the OOM and the
-    # client sees a cryptic struct.error). See README troubleshooting.
+    # IMPORTANT (Linux+CUDA): pick a GPU with free memory (check `nvidia-smi`).
+    # If `device=0` is full, inference fails *silently* (the server catches the
+    # OOM and the client sees a cryptic struct.error). See README troubleshooting.
+    # On Darwin `morphem_device` is the string "mps" - the server routes to
+    # Apple Silicon's Metal backend (or CPU if MPS is unavailable).
     parameters = dict(
         model_name="CaicedoLab/MorphEm",
-        device=2,
+        device=morphem_device,
     )
     response = setup(parameters, address=address)
     response
@@ -342,10 +363,12 @@ def _(dispatch_setup_process, getpass):
 
 
 @app.cell(hide_code=True)
-def _(dino_address, setup_dino):
+def _(dino_address, dinov2_device, setup_dino):
     parameters_dino = dict(
         model_name="dinov2_vitb14",
-        device=3,  # different GPU from MorphEm; same caveat as above re: nvidia-smi
+        # On Linux+CUDA this is GPU index 3 (different from MorphEm's so the
+        # two servers don't fight over VRAM). On Darwin it's "mps".
+        device=dinov2_device,
     )
     response_dino = setup_dino(parameters_dino, address=dino_address)
     response_dino
