@@ -82,10 +82,12 @@ def _(dispatch_setup_process, getpass):
 @app.cell
 def _(address, setup):
     # Load the MorphEm model in the server-side process.
-    # `device=0` is optional — uncomment to pin to a specific GPU.
+    # IMPORTANT: pick a GPU with free memory (check `nvidia-smi`). If `device=0`
+    # is full, inference fails *silently* (the server catches the OOM and the
+    # client sees a cryptic struct.error). See README troubleshooting.
     parameters = dict(
         model_name="CaicedoLab/MorphEm",
-        # device=0,
+        device=2,
     )
     response = setup(parameters, address=address)
     response
@@ -343,7 +345,7 @@ def _(dispatch_setup_process, getpass):
 def _(dino_address, setup_dino):
     parameters_dino = dict(
         model_name="dinov2_vitb14",
-        device=3,  # MorphEm holds GPU 0; put DINOv2 on a free GPU
+        device=3,  # different GPU from MorphEm; same caveat as above re: nvidia-smi
     )
     response_dino = setup_dino(parameters_dino, address=dino_address)
     response_dino

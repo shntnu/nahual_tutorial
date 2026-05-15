@@ -4,6 +4,12 @@ Get image embeddings from pretrained ML models — MorphEm, DINOv2, Cellpose, et
 
 `morphem_nb.py` is a marimo notebook that fetches 20 Cell Painting images, pushes them through both **MorphEm** and **DINOv2**, and compares the resulting embeddings.
 
+| Notebook | Preview |
+|---|---|
+| [`morphem_nb.py`](morphem_nb.py) | [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/afermg/nahual_tutorial/blob/master/morphem_nb.py) |
+
+The molab preview renders the committed session snapshot in [`__marimo__/session/`](__marimo__/session/) — you see the cached outputs without needing GPUs or a running nahual server.
+
 ## What is nahual?
 
 `nahual` is an IPC-based dispatcher for ML models. Each model runs as a long-lived **server** in its own Nix/Python environment, listening on a UNIX socket (`ipc:///tmp/...`). Your **client** code talks to it over the socket with a uniform `(setup, process)` interface.
