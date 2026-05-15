@@ -9,7 +9,7 @@ import numpy
 from nahual.process import dispatch_setup_process
 
 setup, process = dispatch_setup_process("vit")
-address = "ipc:///tmp/morphem.ipc"
+address = "ipc:///tmp/morphem_alan.ipc"
 
 # %%Load models server-side
 parameters = dict(
