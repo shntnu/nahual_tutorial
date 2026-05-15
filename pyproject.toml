@@ -1,0 +1,9 @@
+[project]
+name = "nahual-examples"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "marimo>=0.23.6",
+    "nahual>=0.0.8",
+    "numpy>=2.4.4",
+]
