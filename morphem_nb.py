@@ -26,8 +26,9 @@ def _(mo):
     and start the server in its own shell:
 
     ```bash
-    nix develop --command bash -c "python src/vit/morphem.py ipc:///tmp/morphem.ipc"
+    nix run github:afermg/nahual_vit "ipc:///tmp/morphem_{NAME}.ipc"
     ```
+
 
     The notebook talks to that process over the IPC socket below.
     """)
@@ -37,7 +38,7 @@ def _(mo):
 @app.cell
 def _(dispatch_setup_process):
     setup, process = dispatch_setup_process("vit")
-    address = "ipc:///tmp/morphem.ipc"
+    address = "ipc:///tmp/morphem_alan.ipc"
     return address, process, setup
 
 
@@ -67,10 +68,36 @@ def _(mo):
 
 @app.cell
 def _(numpy):
+    import io
+    import imagecodecs
+    import requests
+
     tile_size = 256
-    input_shape = (2, 6, 1, tile_size, tile_size)
-    data = numpy.random.random_sample(input_shape)
+
+    # data = numpy.random.random_sample(input_shape)
+
+    url = (
+        "https://cellpainting-gallery.s3.amazonaws.com/cpg0016-jump/source_4/"
+        "images/2021_04_26_Batch1/images/"
+        "BR00117035__2021-05-02T16_02_51-Measurement1/Images/"
+        "r01c01f01p01-ch1sk1fk1fl1.tiff"
+    )
+    raw = imagecodecs.imread(io.BytesIO(requests.get(url, timeout=30).content))
+    img = raw.astype("float32") / numpy.iinfo(raw.dtype).max
+
+    # Tile the (H, W) image into non-overlapping tile_size x tile_size patches.
+    h_tiles = img.shape[0] // tile_size
+    w_tiles = img.shape[1] // tile_size
+    cropped = img[: h_tiles * tile_size, : w_tiles * tile_size]
+    tiles = cropped.reshape(h_tiles, tile_size, w_tiles, tile_size).swapaxes(1, 2)
+    tiles = tiles.reshape(h_tiles * w_tiles, tile_size, tile_size)
+
+    # Expand to (batch, channels=6, depth=1, H, W); repeat the single channel.
+    batch = tiles.shape[0]
+    input_shape = (batch, 6, 1, tile_size, tile_size)
+    data = numpy.broadcast_to(tiles[:, None, None, :, :], input_shape).copy()
     data.shape
+
     return (data,)
 
 
