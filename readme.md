@@ -23,26 +23,59 @@ The cost: you start one server per model.
 
 ## Prerequisites
 
-- Linux with Nix (the model servers ship as Nix flakes)
-- At least one CUDA GPU
 - Python 3.13 with [`uv`](https://docs.astral.sh/uv/) for the client side
-- ~5 GB free disk for model weights and Nix store entries
+- ~5 GB free disk for model weights and environment caches
+- One supported server path:
+  - Linux with Nix and CUDA GPU (canonical)
+  - macOS on Apple Silicon via pixi and PyTorch MPS
+  - NixOS with CUDA GPU via pixi inside a small Nix dev shell
 
 ## Quick start
 
 ### 1. Start the model servers
 
-Open one terminal per model. Use a per-user socket name (`${USER}`) so you don't collide with other users on a shared machine:
+Open one terminal per model. Use a per-user socket name (`${USER}`) so you don't collide with other users on a shared machine.
+
+The canonical Linux+Nix+CUDA path uses the upstream server flakes:
 
 ```bash
-# Terminal A — MorphEm
-nix run github:afermg/nahual_vit "ipc:///tmp/morphem_${USER}.ipc"
+# Terminal A - MorphEm
+nix run github:afermg/nahual_vit -- "ipc:///tmp/morphem_${USER}.ipc"
 
-# Terminal B — DINOv2
+# Terminal B - DINOv2
 nix run github:afermg/dinov2 -- "ipc:///tmp/dinov2_${USER}.ipc"
 ```
 
-The first run fetches the flake from GitHub and downloads model weights — expect 1–5 minutes. Subsequent runs are instant. While idle, the servers print `Waiting for Model: Timed out` — that's normal.
+The portable pixi path lives in sibling clones of the server repos. Use the `add-pixi-darwin-path` branches until those changes land upstream:
+
+```bash
+git clone https://github.com/shntnu/nahual_vit ../nahual_vit
+git clone https://github.com/shntnu/dinov2 ../dinov2
+git -C ../nahual_vit switch add-pixi-darwin-path
+git -C ../dinov2 switch add-pixi-darwin-path
+```
+
+On macOS with Apple Silicon, run the pixi `osx` environment:
+
+```bash
+# Terminal A - MorphEm
+cd ../nahual_vit && pixi run -e osx morphem "ipc:///tmp/morphem_${USER}.ipc"
+
+# Terminal B - DINOv2
+cd ../dinov2 && pixi run -e osx dinov2 "ipc:///tmp/dinov2_${USER}.ipc"
+```
+
+On NixOS with a CUDA GPU, run pixi from the `pixi` dev shell so conda-forge PyTorch can find `libcuda.so`:
+
+```bash
+# Terminal A - MorphEm
+cd ../nahual_vit && nix develop .#pixi --command pixi run morphem "ipc:///tmp/morphem_${USER}.ipc"
+
+# Terminal B - DINOv2
+cd ../dinov2 && nix develop .#pixi --command pixi run dinov2 "ipc:///tmp/dinov2_${USER}.ipc"
+```
+
+The first run fetches dependencies and downloads model weights — expect 1-5 minutes. Subsequent runs are much faster. While idle, the servers print `Waiting for Model: Timed out` — that's normal.
 
 ### 2. Launch the notebook
 
@@ -50,7 +83,7 @@ The first run fetches the flake from GitHub and downloads model weights — expe
 uv run marimo edit morphem_nb.py
 ```
 
-Marimo opens in your browser. The notebook will pick up your `${USER}`-scoped socket addresses if you edited `address` / `dino_address` to match, or you can keep the defaults (`ipc:///tmp/morphem.ipc`, `ipc:///tmp/dinov2_shsingh.ipc`).
+Marimo opens in your browser. The notebook builds the same `${USER}`-scoped socket addresses automatically, so the commands above match the defaults.
 
 ### SSH / remote
 

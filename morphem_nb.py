@@ -44,8 +44,8 @@ def _(mo):
     and [DINOv2](https://github.com/facebookresearch/dinov2) — through `nahual`
     model servers and compares their image embeddings on 20 Cell Painting wells.
 
-    **See `README.md` in this repo** for prerequisites (Nix, GPU) and the exact
-    commands to start the two model servers in separate shells. Once both
+    **See `README.md` in this repo** for the supported server paths and the
+    exact commands to start the two model servers in separate shells. Once both
     servers are listening on their IPC sockets, walk through this notebook
     top-to-bottom.
     """)
