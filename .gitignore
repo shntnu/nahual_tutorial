@@ -1,1 +1,4 @@
 .direnv/
+.agents/
+.claude/
+*.ipc
