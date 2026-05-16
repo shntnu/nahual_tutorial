@@ -8,21 +8,31 @@ A short tutorial showing how to call pretrained vision models (MorphEm, DINOv2) 
 
 There is no test suite, no CI, no build step. Edits to the notebook are the work.
 
-## Platform: Linux+Nix is canonical, macOS works via pixi sidecar
+## Platform: Linux+Nix is canonical; pixi is a portable alternative
 
-The Linux+Nix+CUDA path described in the README is the canonical one and stays untouched. A parallel pixi-based path was added so the same servers run on macOS (MPS). Verified working end-to-end on `aarch64-darwin` (2026-05-15):
+The Linux+Nix+CUDA path described in the README is the canonical one and stays untouched. A parallel pixi-based path was added that also works on macOS (MPS) and on NixOS via GPU. Verified end-to-end:
 
-```
-morphem embeddings: (20, 2304)  norm-mean=145.79
-dinov2 embeddings:  (20, 768)   norm-mean=47.76
-```
+- aarch64-darwin (MPS): `morphem (20, 2304)`, `dinov2 (20, 768)`. Norm-means 145.79 / 47.76.
+- oppy (NixOS+H100, pixi path): `morphem (20, 2304)` in 0.45s, `dinov2 (20, 768)` in 0.31s. Norm-means 145.57 / 47.78. `device='cuda:0'`.
 
 **Why pixi rather than fixing the Nix flake on Darwin:** nixpkgs marks `python3.13-torch` as broken on Darwin, so `nix run github:afermg/nahual_vit` and `nix run github:afermg/dinov2` both fail at Nix *evaluation*. The torch derivation itself is the blocker, not the flake. Conda-forge ships PyTorch with MPS on Darwin and CUDA on Linux from one channel, so pixi is the pragmatic fix.
 
-**Where the pixi sidecars live.** They are *not* in this repo. They sit inside the sibling clones of the server repos and are unrelated to the canonical Linux path:
+**Pixi has two environments per server** because CUDA system-requirements cannot coexist with macOS in a single env:
 
-- `../nahual_vit/pixi.toml` + `pixi run morphem ipc://...`
-- `../dinov2/pixi.toml`     + `pixi run dinov2 ipc://...`
+- `default` (Linux+CUDA via conda-forge `pytorch-gpu` + `system-requirements.cuda = "12"`). Used with `pixi run morphem ...`.
+- `osx` (macOS+MPS via conda-forge `pytorch`). Used with `pixi run -e osx morphem ...`.
+
+**On NixOS specifically**, conda-installed `pytorch-gpu` can't find `libcuda.so` because `/run/opengl-driver/lib` isn't on the default linker path. Each server flake now exposes a minimal `devShells.pixi` that bootstraps `pixi` with the right `LD_LIBRARY_PATH`. Pattern lifted from [shntnu/neusis templates/python-pixi](https://github.com/shntnu/neusis/tree/main/templates/python-pixi). Use as:
+
+```bash
+cd ../nahual_vit && nix develop .#pixi --command pixi run morphem "ipc:///tmp/morphem_${USER}.ipc"
+cd ../dinov2     && nix develop .#pixi --command pixi run dinov2  "ipc:///tmp/dinov2_${USER}.ipc"
+```
+
+**Where the pixi files live.** Not in this repo - inside the sibling clones of the server repos:
+
+- `../nahual_vit/pixi.toml` + new `devShells.pixi` in `flake.nix`
+- `../dinov2/pixi.toml`     + new `devShells.pixi` in `flake.nix`
 
 **Server-code changes that went with the pixi path** (also in the sibling clones, not here):
 
@@ -58,9 +68,13 @@ The notebook is a **client**. It will hang on `setup(...)` unless two model serv
 nix run github:afermg/nahual_vit -- "ipc:///tmp/morphem_${USER}.ipc"
 nix run github:afermg/dinov2     -- "ipc:///tmp/dinov2_${USER}.ipc"
 
-# macOS (pixi sidecar, run from sibling clones):
-cd ../nahual_vit && pixi run morphem "ipc:///tmp/morphem_${USER}.ipc"
-cd ../dinov2     && pixi run dinov2  "ipc:///tmp/dinov2_${USER}.ipc"
+# macOS (pixi sidecar, run from sibling clones; osx env):
+cd ../nahual_vit && pixi run -e osx morphem "ipc:///tmp/morphem_${USER}.ipc"
+cd ../dinov2     && pixi run -e osx dinov2  "ipc:///tmp/dinov2_${USER}.ipc"
+
+# NixOS pixi+GPU (default env; nix shell supplies LD_LIBRARY_PATH for libcuda):
+cd ../nahual_vit && nix develop .#pixi --command pixi run morphem "ipc:///tmp/morphem_${USER}.ipc"
+cd ../dinov2     && nix develop .#pixi --command pixi run dinov2  "ipc:///tmp/dinov2_${USER}.ipc"
 ```
 
 The notebook builds socket addresses from `getpass.getuser()`, so it picks up the `${USER}`-scoped sockets automatically regardless of which launcher you used.
